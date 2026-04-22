@@ -36,8 +36,8 @@ Porichoy combines two complementary identity capabilities into one platform:
 
 ## Tech Stack
 
-- **Backend**: Node.js + Express + TypeORM + PostgreSQL
-- **Frontend**: Angular 21 + @ngrx/signals
+- **Backend**: Node.js 20+ + Express + TypeORM + PostgreSQL 16
+- **Frontend**: Angular 19 + @ngrx/signals
 - **Monorepo**: Nx workspace
 - **Token Signing**: RS256 (asymmetric keys, JWKS endpoint)
 - **Auth Protocol**: OAuth2 / OpenID Connect with PKCE
@@ -47,22 +47,41 @@ Porichoy combines two complementary identity capabilities into one platform:
 ```bash
 # Prerequisites: Node.js 20+, Docker
 
-# Start database
+# 1. Start database (maps to port 5433 to avoid conflicts with local PostgreSQL)
 docker compose up -d
 
-# Install dependencies
+# 2. Install dependencies
 npm install
 
-# Start API
+# 3. Seed demo data (identities, roles, apps, access review)
+npx ts-node --project apps/api/tsconfig.app.json -r tsconfig-paths/register apps/api/src/seed.ts
+
+# 4. Start API
 npx nx serve api
 
-# Start Web UI
+# 5. Start Web UI
 npx nx serve web
 ```
 
 - **API**: http://localhost:3400
 - **Web UI**: http://localhost:3401
 - **Dev OTP**: `123456`
+
+### Demo Accounts
+
+| Email | Password | Access |
+|-------|----------|--------|
+| admin@porichoy.com | admin123 | Porichoy admin — full access to all panels |
+| alice@gonok.com | alice123 | Sales Manager + Inventory Clerk roles |
+| bob@gonok.com | bob123 | Finance Officer + Auditor roles |
+
+### Troubleshooting
+
+**Port conflict on 5432** — If you have a local PostgreSQL instance already running on port 5432, Docker maps to port **5433** by design. Ensure `.env` has `DB_PORT=5433`.
+
+**OTP in dev mode** — `OTP_DEV_MODE=true` is set by default; any OTP prompt accepts `123456`. To use real OTP delivery, set `OTP_DEV_MODE=false` and configure an SMS/email provider.
+
+**Keys not found** — The API auto-generates RSA key files in `.keys/` on first startup. If you see key errors, delete the `.keys/` directory and restart.
 
 ## Documentation
 
@@ -72,7 +91,6 @@ npx nx serve web
 | [Data Model](docs/DATA_MODEL.md) | Complete database schema with all entities |
 | [API Reference](docs/API.md) | All endpoints — Ping side, SailPoint side, Audit |
 | [Auth Flow](docs/AUTH_FLOW.md) | OIDC authorization code flow with PKCE, token details |
-| [Roadmap](docs/ROADMAP.md) | Phased build plan from MVP to full platform |
 | [Connector Spec](docs/CONNECTOR_SPEC.md) | How connected apps integrate with Porichoy |
 
 ## Project Structure

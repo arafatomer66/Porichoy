@@ -1,4 +1,4 @@
-import { generateKeyPair, exportJWK, importPKCS8, importSPKI, type KeyLike } from 'jose';
+import { generateKeyPair, exportJWK, exportPKCS8, exportSPKI, importPKCS8, importSPKI, type KeyLike } from 'jose';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -22,11 +22,10 @@ export async function initKeys(): Promise<void> {
     const pair = await generateKeyPair('RS256', { modulusLength: 2048 });
     privateKey = pair.privateKey;
     publicKey = pair.publicKey;
-    const { subtle } = globalThis.crypto;
-    const privDer = await subtle.exportKey('pkcs8', privateKey as CryptoKey);
-    const pubDer = await subtle.exportKey('spki', publicKey as CryptoKey);
-    fs.writeFileSync(PRIVATE_KEY_PATH, toPem(privDer, 'PRIVATE KEY'));
-    fs.writeFileSync(PUBLIC_KEY_PATH, toPem(pubDer, 'PUBLIC KEY'));
+    const privPem = await exportPKCS8(privateKey);
+    const pubPem = await exportSPKI(publicKey);
+    fs.writeFileSync(PRIVATE_KEY_PATH, privPem);
+    fs.writeFileSync(PUBLIC_KEY_PATH, pubPem);
   }
 
   const pubJwk = await exportJWK(publicKey);
@@ -34,12 +33,6 @@ export async function initKeys(): Promise<void> {
   pubJwk.alg = 'RS256';
   pubJwk.kid = 'porichoy-1';
   jwks = { keys: [pubJwk] };
-}
-
-function toPem(der: ArrayBuffer, label: string): string {
-  const b64 = Buffer.from(der).toString('base64');
-  const lines = b64.match(/.{1,64}/g)!.join('\n');
-  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
 }
 
 export function getPrivateKey(): KeyLike { return privateKey; }

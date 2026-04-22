@@ -1,12 +1,11 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 
 @Component({
   selector: 'app-reviews',
   standalone: true,
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule],
   template: `
     <div class="page-header">
       <h1>Access Reviews</h1>

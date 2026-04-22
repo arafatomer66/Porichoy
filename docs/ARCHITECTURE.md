@@ -124,7 +124,7 @@ identities (canonical user record)
 ### Development
 ```
 docker-compose.yml:
-  postgres:5432     (Porichoy database)
+  postgres:5433     (Porichoy database — mapped to 5433 to avoid local PG conflicts)
   porichoy-api:3400 (Express backend)
   porichoy-web:3401 (Angular frontend)
 ```
