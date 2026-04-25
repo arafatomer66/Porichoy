@@ -5,6 +5,26 @@ import { requireAdmin } from '../../../middleware/admin.middleware';
 
 const router = Router();
 
+// Public: lookup client by clientId (for OAuth consent screen)
+router.get('/by-client-id/:clientId', async (req: Request, res: Response) => {
+  try {
+    const { AppDataSource } = await import('../../../config/database');
+    const { OAuthClient } = await import('../../../entities/oauth-client.entity');
+    const client = await AppDataSource.getRepository(OAuthClient).findOne({
+      where: { clientId: req.params['clientId'], isActive: true },
+      relations: ['application'],
+    });
+    if (!client) return res.status(404).json({ error: 'not_found' });
+    // Return only public info
+    res.json({
+      clientName: client.clientName,
+      clientId: client.clientId,
+      clientType: client.clientType,
+      applicationName: client.application?.name ?? null,
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/', requireAuth, requireAdmin, async (_req, res: Response) => {
   try { res.json(await ClientsService.list()); }
   catch (err: any) { res.status(500).json({ error: err.message }); }

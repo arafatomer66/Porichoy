@@ -1,5 +1,7 @@
 # Connector Spec
 
+> **New here?** See [QUICKSTART.md](QUICKSTART.md) for a plug-and-play guide to connect your first app in under 10 minutes, including a runnable reference app.
+
 ## Overview
 
 A **connector** is how Porichoy links an external application into the identity governance lifecycle. It controls:
@@ -88,7 +90,7 @@ POST /roles/<role_uuid>/entitlements/<entitlement_uuid>
 const codeVerifier = randomBytes(64).toString('base64url');
 const codeChallenge = base64url(sha256(codeVerifier));
 
-// 2. Redirect user
+// 2. Redirect user to Porichoy's FRONTEND (login + consent page)
 const params = new URLSearchParams({
   response_type: 'code',
   client_id: 'gonok-web',
@@ -98,9 +100,11 @@ const params = new URLSearchParams({
   code_challenge: codeChallenge,
   code_challenge_method: 'S256',
 });
-window.location.href = `http://localhost:3400/oauth/authorize?${params}`;
+// NOTE: redirect to the frontend (port 3401), NOT the API (port 3400)
+// The frontend shows a login form + consent screen, then redirects back
+window.location.href = `http://localhost:3401/oauth/authorize?${params}`;
 
-// 3. On callback, exchange code for tokens
+// 3. On callback, exchange code for tokens (call the API)
 const tokens = await fetch('http://localhost:3400/oauth/token', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -276,23 +280,76 @@ Sales Manager ↔ Finance Officer  (prevent — segregate transaction creation f
 
 ## connector_config Field
 
-The `connectorConfig` JSONB field on an application is reserved for future API and SCIM connector implementations. For `oidc` and `manual` connectors, leave it as `{}`.
+The `connectorConfig` JSONB field on an application configures how Porichoy connects to the app's API for user sync. For `manual` connectors, leave it as `{}`.
 
-Future SCIM example:
+### API Connector Config (implemented)
+
+```json
+{
+  "usersEndpoint": "/api/users",
+  "usersPath": "users",
+  "fieldMap": {
+    "displayName": "name",
+    "email": "email",
+    "phone": "phone",
+    "role": "role"
+  },
+  "authHeader": "Bearer your-api-key"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `usersEndpoint` | Path appended to `baseUrl` to fetch users (default: `/api/users`) |
+| `usersPath` | Dot-notation path to the users array in the JSON response (e.g., `data.users`, `results`) |
+| `fieldMap` | Maps app field names → Porichoy identity fields. Supports nested fields via dot-notation (e.g., `contact.email`, `user.profile.name`) |
+| `authHeader` | Optional `Authorization` header sent to the app's API |
+
+### Dynamic Field Discovery
+
+The `GET /applications/:uuid/preview-users` endpoint connects to the app, fetches users, and returns:
+- All discovered field paths (including nested)
+- Unique role values found in the data
+- Sample user for preview
+
+This powers the UI's **Test Connection → Field Mapping → Role Mapping → Sync** wizard.
+
+### User Sync Behavior
+
+| Scenario | Action |
+|----------|--------|
+| User email doesn't exist in Porichoy | New identity created |
+| User email matches existing identity | Correlated (linked, not duplicated) |
+| Role mapping provided | Porichoy role auto-assigned |
+| Role already active on identity | Skipped (no duplicate assignment) |
+
+All sync operations are audit-logged with `identity.sync_create`, `role.grant`, and `application.sync_users` actions.
+
+### Example: App returning non-standard fields
+
+If an app returns:
+```json
+{ "full_name": "Kamal", "mail": "kamal@x.com", "contact": { "phone": "+880170" }, "position": "admin" }
+```
+
+Configure `fieldMap` as:
+```json
+{
+  "displayName": "full_name",
+  "email": "mail",
+  "phone": "contact.phone",
+  "role": "position"
+}
+```
+
+---
+
+### Future SCIM example:
 ```json
 {
   "scimBaseUrl": "https://app.example.com/scim/v2",
   "bearerToken": "...",
   "syncEnabled": true,
   "syncIntervalMinutes": 60
-}
-```
-
-Future API connector example:
-```json
-{
-  "provisionUrl": "https://app.example.com/api/users",
-  "deprovisionUrl": "https://app.example.com/api/users/{id}/deactivate",
-  "apiKey": "..."
 }
 ```

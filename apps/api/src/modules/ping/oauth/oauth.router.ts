@@ -25,13 +25,21 @@ router.get('/authorize', requireAuth, async (req: Request, res: Response) => {
 router.post('/authorize/consent', requireAuth, async (req: Request, res: Response) => {
   try {
     const { clientId, redirectUri, scope, responseType, codeChallenge, codeChallengeMethod, state, decision } = req.body;
-    if (decision === 'deny') return res.redirect(`${redirectUri}?error=access_denied${state ? `&state=${state}` : ''}`);
+    const isXhr = req.headers['accept']?.includes('application/json') || req.headers['content-type']?.includes('application/json');
+
+    if (decision === 'deny') {
+      const denyUrl = `${redirectUri}?error=access_denied${state ? `&state=${state}` : ''}`;
+      if (isXhr) return res.json({ redirectUrl: denyUrl });
+      return res.redirect(denyUrl);
+    }
 
     const result = await OAuthService.authorize({
       clientId, redirectUri, scope: scope ?? 'openid', responseType,
       codeChallenge, codeChallengeMethod, identityUuid: req.identity!.uuid,
       consentGiven: true, state,
     });
+
+    if (isXhr) return res.json({ redirectUrl: result.redirectUrl });
     res.redirect(result.redirectUrl!);
   } catch (err: any) {
     res.status(err.status ?? 500).json({ error: err.message });

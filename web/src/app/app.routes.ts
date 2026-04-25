@@ -13,6 +13,10 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./features/auth/register/register.component').then(m => m.RegisterComponent),
   },
   {
+    path: 'oauth/authorize',
+    loadComponent: () => import('./features/auth/oauth-authorize/oauth-authorize.component').then(m => m.OAuthAuthorizeComponent),
+  },
+  {
     path: 'admin',
     canActivate: [adminGuard],
     loadComponent: () => import('./features/admin/shell/shell.component').then(m => m.ShellComponent),

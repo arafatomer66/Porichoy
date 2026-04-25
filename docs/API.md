@@ -568,6 +568,98 @@ Delete an application.
 
 ---
 
+#### `GET /applications/:uuid/preview-users`
+
+Admin only. Test connection to the app's API and discover available fields.
+
+Uses the app's `connectorConfig` (`usersEndpoint`, `usersPath`, `authHeader`) to fetch users from the connected app.
+
+**Response** `200`
+```json
+{
+  "url": "http://localhost:5050/api/users",
+  "totalUsers": 5,
+  "fields": ["department", "email", "id", "name", "role"],
+  "roleValues": ["owner", "cashier", "staff"],
+  "sampleUser": { "id": 1, "name": "Kamal Hossain", "email": "kamal@chaibook.com", "role": "owner", "department": "Management" },
+  "sampleUsers": [ "..." ]
+}
+```
+
+- `fields` — all unique field paths discovered from the users (supports nested dot-notation like `contact.email`)
+- `roleValues` — unique values from the role field
+- `sampleUser` — first user for UI preview
+
+Returns `502` if the app's API is unreachable.
+
+---
+
+#### `POST /applications/:uuid/sync-from-api`
+
+Admin only. Fetch users from the app's API and sync them into Porichoy.
+
+Uses `connectorConfig.fieldMap` to map app fields → Porichoy identity fields. Supports nested fields via dot-notation.
+
+**Body**
+```json
+{
+  "roleMapping": {
+    "owner": "Shop Owner",
+    "cashier": "Cashier",
+    "staff": "Staff"
+  }
+}
+```
+
+`roleMapping` maps the app's role values → Porichoy role names for this application.
+
+**Response** `200`
+```json
+{
+  "fetchedCount": 5,
+  "created": [{ "uuid": "...", "displayName": "Kamal Hossain", "email": "kamal@chaibook.com" }],
+  "correlated": [{ "uuid": "...", "displayName": "Existing User", "email": "..." }],
+  "rolesAssigned": [{ "identityUuid": "...", "roleUuid": "...", "roleName": "Shop Owner" }],
+  "errors": []
+}
+```
+
+**Behavior:**
+- New users (no matching email/phone) → identity created
+- Existing users (email match) → correlated (linked, not duplicated)
+- Role mapping applied → roles auto-assigned if not already active
+- Everything audit-logged
+
+---
+
+#### `POST /applications/:uuid/sync-users`
+
+Admin only. Manually sync a list of users into Porichoy for this application.
+
+**Body**
+```json
+{
+  "users": [
+    { "displayName": "Sara Khan", "email": "sara@example.com", "password": "pass123", "roleName": "Editor" },
+    { "displayName": "Rafiq Ahmed", "email": "rafiq@example.com", "roleName": "Viewer" }
+  ]
+}
+```
+
+Each user entry supports: `displayName` (required), `email` or `phone` (required), `password` (optional), `roleName` or `roleUuid` (optional), `metadata` (optional).
+
+**Response** `200` — same shape as `sync-from-api` (without `fetchedCount`).
+
+---
+
+#### `GET /applications/:uuid/roles`
+
+Admin only. List roles belonging to this application.
+
+**Response** `200` — array of role objects.
+
+---
+
 ### Roles & Entitlements — `/roles`
 
 All endpoints are admin only.

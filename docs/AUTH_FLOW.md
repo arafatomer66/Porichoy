@@ -5,22 +5,27 @@
 Porichoy implements **OAuth 2.0 Authorization Code flow with PKCE** (Proof Key for Code Exchange) as specified in RFC 7636. All tokens are signed with **RS256** (RSA + SHA-256), and the public key is available via JWKS so connected apps can validate tokens independently.
 
 ```
-App (SPA/mobile)          Porichoy                   App Backend
+Your App                Porichoy Frontend           Porichoy API
+(localhost:4000)        (localhost:3401)             (localhost:3400)
        │                      │                           │
-       │──── 1. Redirect ────▶│                           │
-       │     (code + PKCE)    │                           │
-       │                      │◀── user logs in ──────────│
-       │                      │    (session cookie)       │
-       │◀─── 2. Auth code ────│                           │
+       │─ 1. Redirect ───────▶│                           │
+       │   /oauth/authorize    │                           │
+       │   + PKCE params      │                           │
+       │                      │── user logs in ──────────▶│
+       │                      │   (gets session cookie)   │
        │                      │                           │
-       │──── 3. POST /token ─▶│                           │
-       │     (code + verifier)│                           │
-       │◀─── 4. Tokens ───────│                           │
+       │                      │── consent approved ──────▶│
+       │                      │   POST /oauth/consent     │
        │                      │                           │
-       │─────── 5. API request with Bearer token ────────▶│
+       │◄─ 2. Redirect ───────│◄── auth code ────────────│
+       │   ?code=abc&state=x  │                           │
+       │                      │                           │
+       │──────── 3. POST /oauth/token ───────────────────▶│
+       │         (code + code_verifier)                   │
+       │◄─────── 4. JWT + refresh token ─────────────────│
        │                                                  │
-       │                                         validates JWT
-       │                                         via /jwks
+       │─── 5. App gates features on JWT entitlements ────│
+       │        (validates signature via GET /oauth/jwks) │
 ```
 
 ---
@@ -45,10 +50,10 @@ Store `codeVerifier` in session storage (never sent to the server until step 3).
 
 ### Step 2 — Redirect to Authorization Endpoint
 
-Redirect the user to:
+Redirect the user to Porichoy's **frontend** (not the API). The frontend provides a branded login + consent page:
 
 ```
-GET http://localhost:3400/oauth/authorize
+GET http://localhost:3401/oauth/authorize
   ?response_type=code
   &client_id=gonok-web
   &redirect_uri=http://localhost:3333/auth/callback
@@ -58,12 +63,14 @@ GET http://localhost:3400/oauth/authorize
   &code_challenge_method=S256
 ```
 
-**What Porichoy does:**
-1. Checks for an active session (redirects to login if not)
-2. Validates `client_id`, `redirect_uri`, `scope`, and `code_challenge`
-3. Checks whether the user has previously consented — if not, shows a consent screen
-4. Stores the authorization code tied to the identity + PKCE challenge
-5. Redirects to: `http://localhost:3333/auth/callback?code=<auth_code>&state=<state>`
+> **Important**: Redirect to the frontend (`localhost:3401`), not the API (`localhost:3400`). The frontend handles the login form, consent screen, and then calls the API on the user's behalf.
+
+**What happens:**
+1. If the user isn't logged in, they see a login form (password or OTP)
+2. After login, Porichoy shows a consent screen with the app name and requested scopes
+3. If the user has previously consented, consent is skipped automatically
+4. On approval, the backend generates an authorization code
+5. The user is redirected back to: `http://localhost:3333/auth/callback?code=<auth_code>&state=<state>`
 
 ---
 

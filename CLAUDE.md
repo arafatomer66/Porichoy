@@ -145,6 +145,7 @@ When connecting a new app to Porichoy:
 
 | File | Contents |
 |------|----------|
+| `docs/QUICKSTART.md` | **Start here** — plug-and-play guide to connect your app in 10 min |
 | `docs/ARCHITECTURE.md` | System diagram, Token Bridge, security model |
 | `docs/DATA_MODEL.md` | All 20 entity schemas |
 | `docs/API.md` | Full API reference (~50 endpoints) |
@@ -153,8 +154,56 @@ When connecting a new app to Porichoy:
 
 ---
 
+## User Sync / App Onboarding
+
+The platform supports **connector-based user sync** — importing users from a connected app's API into Porichoy and auto-assigning roles.
+
+### Key Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /applications/:uuid/preview-users` | Test connection to app API, returns discovered fields, role values, sample data |
+| `POST /applications/:uuid/sync-from-api` | Fetch users from app API, create/correlate identities, assign roles via mapping |
+| `POST /applications/:uuid/sync-users` | Manual bulk sync — accepts JSON array of users directly |
+| `GET /applications/:uuid/roles` | List roles for an app (used by sync UI for dropdowns) |
+
+### connectorConfig Structure
+
+```json
+{
+  "usersEndpoint": "/api/users",
+  "usersPath": "users",
+  "fieldMap": {
+    "displayName": "name",
+    "email": "email",
+    "phone": "phone",
+    "role": "role"
+  },
+  "authHeader": "Bearer <token>"
+}
+```
+
+- `usersEndpoint`: path appended to `baseUrl` to fetch users
+- `usersPath`: dot-notation path to the users array in the JSON response (e.g. `data.users`)
+- `fieldMap`: maps app field names (including nested like `contact.email`) → Porichoy identity fields
+- `authHeader`: optional auth header sent to the app's API
+
+### Sync Flow (UI)
+
+1. **Test Connection** → calls `preview-users`, discovers fields + role values
+2. **Field Mapping** → visual dropdowns to map app fields → Porichoy fields (auto-detects common names)
+3. **Role Mapping** → maps app role values → Porichoy roles (e.g., `"owner" → "Shop Owner"`)
+4. **Sync** → saves field mapping to `connectorConfig`, then calls `sync-from-api`
+
+### Mock App for Testing
+
+`mock-apps/chaibook/server.js` — simple Node.js server on port 5050 returning 5 users at `GET /api/users`. Start with `node mock-apps/chaibook/server.js`.
+
+---
+
 ## Known Fixes Applied
 
-- **Docker port**: mapped to `5433` (not `5432`) to avoid local PostgreSQL 13 conflict
+- **Docker port**: mapped to `5434` (not `5432`/`5433`) to avoid local PostgreSQL conflicts
 - **keys.ts**: uses `jose` export functions, not `globalThis.crypto.subtle` (unavailable in ts-node)
 - **ReviewsComponent**: `DatePipe` removed from imports (unused, caused build warning)
+- **Nx executor**: `@nx/node:node` unavailable in Nx 20.8 — API started directly via `ts-node` instead
